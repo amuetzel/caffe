@@ -212,14 +212,16 @@ class ContrastiveLossLayer : public LossLayer<Dtype> {
 
 /**
  * @brief Computes the Euclidean (L2) loss @f$
- *          E = \frac{1}{2N} \sum\limits_{n=1}^N \left| \left| \hat{y}_n - y_n
+ *          E = \frac{1}{2N} \sum\limits_{n=1}^N \left| \left| w_n (\hat{y}_n - y_n)
  *        \right| \right|_2^2 @f$ for real-valued regression tasks.
  *
- * @param bottom input Blob vector (length 2)
+ * @param bottom input Blob vector (length 2 or 3)
  *   -# @f$ (N \times C \times H \times W) @f$
  *      the predictions @f$ \hat{y} \in [-\infty, +\infty]@f$
  *   -# @f$ (N \times C \times H \times W) @f$
  *      the targets @f$ y \in [-\infty, +\infty]@f$
+ *   -# @f$ (N \times C \times H \times W) @f$
+ *      the per-element loss weights @f$ w \in [0, +\infty]@f$ (optional; if not set, the losses won't be weighted, i.e. @f$w_n=1 \forall n@f$)
  * @param top output Blob vector (length 1)
  *   -# @f$ (1 \times 1 \times 1 \times 1) @f$
  *      the computed Euclidean loss: @f$ E =
@@ -250,8 +252,13 @@ class EuclideanLossLayer : public LossLayer<Dtype> {
    * to both inputs -- override to return true and always allow force_backward.
    */
   virtual inline bool AllowForceBackward(const int bottom_index) const {
-    return true;
+    return bottom_index == 0 || bottom_index == 1;
   }
+  
+  
+  virtual inline int ExactNumBottomBlobs() const { return -1; }
+  virtual inline int MinBottomBlobs() const { return 2; }
+  virtual inline int MaxBottomBlobs() const { return 3; }
 
  protected:
   /// @copydoc EuclideanLossLayer
@@ -267,7 +274,7 @@ class EuclideanLossLayer : public LossLayer<Dtype> {
    * gradients with respect to the label inputs bottom[1] (but still only will
    * if propagate_down[1] is set, due to being produced by learnable parameters
    * or if force_backward is set). In fact, this layer is "commutative" -- the
-   * result is the same regardless of the order of the two bottoms.
+   * result is the same regardless of the order of the first two bottoms.
    *
    * @param top output Blob vector (length 1), providing the error gradient with
    *      respect to the outputs
@@ -285,12 +292,12 @@ class EuclideanLossLayer : public LossLayer<Dtype> {
    *      the predictions @f$\hat{y}@f$; Backward fills their diff with
    *      gradients @f$
    *        \frac{\partial E}{\partial \hat{y}} =
-   *            \frac{1}{n} \sum\limits_{n=1}^N (\hat{y}_n - y_n)
+   *            \frac{1}{n} \sum\limits_{n=1}^N w_n(\hat{y}_n - y_n)
    *      @f$ if propagate_down[0]
    *   -# @f$ (N \times C \times H \times W) @f$
    *      the targets @f$y@f$; Backward fills their diff with gradients
    *      @f$ \frac{\partial E}{\partial y} =
-   *          \frac{1}{n} \sum\limits_{n=1}^N (y_n - \hat{y}_n)
+   *          \frac{1}{n} \sum\limits_{n=1}^N w_n(y_n - \hat{y}_n)
    *      @f$ if propagate_down[1]
    */
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
